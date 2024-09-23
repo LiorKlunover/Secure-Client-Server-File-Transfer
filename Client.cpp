@@ -136,11 +136,12 @@ void Client::load_header() {
     header.push_back(static_cast<char>((request_code >> 8) & 0xFF));  // High byte
     header.push_back(static_cast<char>(request_code & 0xFF));         // Low byte
 
-    // Append payload_size (4 bytes, as it's a 32-bit integer)
-    header.push_back(static_cast<char>((payload_size >> 24) & 0xFF)); // Highest byte
-    header.push_back(static_cast<char>((payload_size >> 16) & 0xFF)); // Higher byte
-    header.push_back(static_cast<char>((payload_size >> 8) & 0xFF));  // High byte
-    header.push_back(static_cast<char>(payload_size & 0xFF));         // Low byte
+
+    // Append payload size (4 bytes, as it's a 32-bit integer)
+    header.push_back(static_cast<char>((payload_size >> 24) & 0xFF));  // Highest byte
+    header.push_back(static_cast<char>((payload_size >> 16) & 0xFF));  // High byte
+    header.push_back(static_cast<char>((payload_size >> 8) & 0xFF));   // Low byte
+    header.push_back(static_cast<char>(payload_size & 0xFF));          // Lowest byte
 
     // Append the payload
     header.insert(header.end(), payload.begin(), payload.end());

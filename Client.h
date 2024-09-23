@@ -8,6 +8,8 @@
 #include <boost/asio.hpp>
 #include <iostream>
 #include <fstream>
+#include <cryptopp/cryptlib.h>
+
 using boost::asio::ip::tcp;
 class Client {
 
