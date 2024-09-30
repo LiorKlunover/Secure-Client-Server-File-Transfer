@@ -5,6 +5,7 @@
 #include "Client.h"
 
 
+
 using boost::asio::ip::tcp;
 std::string get_port_ip();
 //connect to the server, and make client class object to send data to the server
@@ -24,8 +25,10 @@ int main() {
     std::cout << "Connected to server" << std::endl;
 
     Client client(socket);
-    client.handle_op_code(828);
-
+//    client.manage_client_flow();
+    client.handle_send_opCode(827);
+    client.start();
+    //client.receive_data_by_chunks();
     return 0;
 }
 
@@ -45,3 +48,18 @@ std::string get_port_ip() {
     file.close();
     return port;
 }
+
+//#include <boost/uuid/uuid.hpp>
+//#include <boost/uuid/uuid_io.hpp>
+//int main() {
+//    const uint8_t byte_array[] = {
+//            0x66, 0x46, 0x07, 0x2b, 0x18, 0xb5, 0x40, 0x81,
+//            0xaf, 0xe5, 0x0e, 0x60, 0x39, 0xd7, 0x37, 0x65
+//    };
+//    std::vector<uint8_t> byte_vector(byte_array, byte_array + sizeof(byte_array) / sizeof(byte_array[0]));
+//    boost::uuids::uuid uuid;
+//    std::copy(byte_vector.begin(), byte_vector.end(), uuid.begin());
+//    std::cout << uuid << std::endl;
+//
+//
+//}
