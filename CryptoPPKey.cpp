@@ -17,12 +17,16 @@ CryptoPPKey::CryptoPPKey() {
     privateKey.Initialize(rng, MODULUS_BITS_SIZE);
     publicKey = CryptoPP::RSA::PublicKey(privateKey);
     std::cout << "RSA Key Pair generated successfully.\n";
+    checksum = 0;
+    crc32 = boost::crc_32_type();
 }
 CryptoPPKey::CryptoPPKey(const std::string& private_key) {
     // Load private key from string
     StringSource ss(private_key, true, new Base64Decoder);
     privateKey.Load(ss);
     publicKey = CryptoPP::RSA::PublicKey(privateKey);
+    checksum = 0;
+    crc32 = boost::crc_32_type();
 }
 
 CryptoPPKey::~CryptoPPKey() {
@@ -116,8 +120,6 @@ void CryptoPPKey::decrypt_aes_key(const std::vector<uint8_t>& encrypted_aes_key)
     aes_key = SecByteBlock((const byte*)decrypted_aes_key.data(), DEFAULT_KEY_LENGTH);
     aes_iv = SecByteBlock((const byte*)decrypted_aes_key.data() + DEFAULT_KEY_LENGTH, AES::BLOCKSIZE);
 
-
-
     std::cout << "AES Key and IV received and decrypted successfully.\n";
 }
 
@@ -128,6 +130,8 @@ std::vector<uint8_t> CryptoPPKey::encrypt_file(const std::vector<uint8_t>& file_
         throw std::runtime_error("AES key or IV is not set.");
         return {};
     }
+    // Calculate the CRC32 checksum of the file content
+    calculate_checksum(file_content);
 
     AutoSeededRandomPool rng;
     std::vector<uint8_t> encrypted_data;
@@ -156,7 +160,15 @@ std::vector<uint8_t> CryptoPPKey::encrypt_file(const std::vector<uint8_t>& file_
 
     return encrypted_data;
 }
-
+void CryptoPPKey::calculate_checksum(const std::vector<uint8_t>& file_content) {
+    crc32.process_bytes(file_content.data(), file_content.size());
+    checksum = crc32.checksum();
+    std::cout << "Checksum calculated successfully.\n";
+    std::cout << "Checksum: " << checksum << std::endl;
+}
+bool CryptoPPKey::verify_checksum(uint32_t checksum){
+    return checksum == this->checksum;
+}
 
 //int main(){
 //    CryptoPPKey key;

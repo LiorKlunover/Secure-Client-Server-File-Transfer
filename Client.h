@@ -6,10 +6,14 @@
 #define MAMAN14_CLIENT_H
 #include <vector>
 #include <boost/asio.hpp>
+#include <filesystem>
 #include <iostream>
+#include <string>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/uuid/uuid_serialize.hpp>
 #include <fstream>
 #include <winsock2.h>
 #include "CryptoPPKey.h"
@@ -32,7 +36,7 @@ private:
         REGISTER_OK = 1600,
         REGISTER_NOK = 1601,
         RECEIVE_AES_KEY = 1602,
-        CRC_RECEIVE_OK = 1603,
+        FILE_RECEIVE_OK_AND_CRC = 1603,
         MESSAGE_RECEIVE_OK = 1604,
         RECONNECT_OK_SEND_AES = 1605,
         RECONNECT_NOK = 1606,
@@ -50,11 +54,13 @@ private:
     std::string file_name;
     std::vector<uint8_t> payload;
     std::string client_private_key;
+    boost::crc_32_type crc32;
    // std::vector<uint8_t> client_name;
     CryptoPPKey cryptoKey;
 
-    int connection_request_count = 0;
 
+    int connection_request_count = 0;
+    int crc_not_ok_count = 0;
 public:
     Client(tcp::socket& socket);
     ~Client();
@@ -68,12 +74,12 @@ public:
     std::vector<uint8_t> get_file_size(std::vector<uint8_t> file_content);
     void send_data_by_chunks();
     std::vector<uint8_t> receive_data_by_chunks();
-    void handle_send_opCode(uint16_t op_code);
+    void handle_sending_opCode(uint16_t op_code);
     std::vector<uint8_t> parse_client_id(std::string client_id);
     void manage_client_flow();
     void start();
     void parse_response(std::vector<uint8_t> response);
-    void handel_response_opCode(uint16_t op_code);
+    void handel_received_opCode(uint16_t op_code);
     void manage_encryption();
     void add_to_payload(std::vector<uint8_t> data);
     void create_me_file();

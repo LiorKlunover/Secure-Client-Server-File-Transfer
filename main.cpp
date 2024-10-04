@@ -17,7 +17,6 @@ int main() {
     std::string port = port_ip.substr(index + 1);
     std::cout << "ip: " << ip << " port: " << port << std::endl;
 
-
     boost::asio::io_context io_context;
     tcp::socket socket(io_context);
     tcp::resolver resolver(io_context);
@@ -25,10 +24,8 @@ int main() {
     std::cout << "Connected to server" << std::endl;
 
     Client client(socket);
-//    client.manage_client_flow();
-    client.handle_send_opCode(827);
     client.start();
-    //client.receive_data_by_chunks();
+
     return 0;
 }
 

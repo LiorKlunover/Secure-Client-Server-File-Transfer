@@ -8,6 +8,15 @@ Client::Client(tcp::socket& socket):socket(socket), client_id(std::vector<uint8_
 client_name(""),client_private_key("") ,header_buffer(std::vector<uint8_t>()), file_name(""), payload(std::vector<uint8_t>()) {
 
     get_data_from_transfer_file();
+    if (std::filesystem::exists("me.info")) {
+        request_code = RECONNECT;
+        get_data_from_me_file();
+        std::cout << "Reconnecting..." << std::endl;
+    } else {
+        request_code = REGISTER;
+        std::cout << "Registering..." << std::endl;
+    }
+    handle_sending_opCode(request_code);
 }
 
 Client::~Client() {
@@ -17,6 +26,7 @@ Client::~Client() {
 void Client::get_data_from_me_file() {
     std::vector<std::string> data= get_file_data("me.info");
     if (data.size() < 3) {
+        std::cerr << "Error: me file is empty" << std::endl;
         return;
     }
     client_name = data[0];
@@ -29,7 +39,6 @@ void Client::get_data_from_me_file() {
         client_private_key += data[i];
     }
     cryptoKey = CryptoPPKey(client_private_key);
-
     std::cout << "Client private key: " << client_private_key << std::endl;
 }
 
@@ -56,7 +65,7 @@ void Client::get_data_from_transfer_file() {
     client_name = data[1];
 
 
-//   handle_send_opCode(REGISTER);
+//   handle_sending_opCode(REGISTER);
 //    std::ofstream file("me.info");
 //    if (!file.is_open()) {
 //        std::cerr << "Error: Could not open the file" << std::endl;
@@ -93,11 +102,14 @@ std::vector<std::string> Client::get_file_data(std::string file_name) {
 
 void Client::start() {
     try {
+        std::cout << "Sending header..." << std::endl;
         send_data_by_chunks();
         std::cout << "Header sent successfully." << std::endl;
 
+        std::cout << "Receiving response..." << std::endl;
         std::vector<uint8_t> response = receive_data_by_chunks();
-        std::cout << "Response received: " << std::string(response.begin(), response.end()) << std::endl;
+        std::cout << "Response received" << std::endl;
+
         parse_response(response);
     } catch (const std::exception& e) {
         std::cerr << "Error during client start: " << e.what() << std::endl;
@@ -153,42 +165,71 @@ void Client::parse_response(std::vector<uint8_t> response){
     uint16_t op_code = ntohs(*reinterpret_cast<const uint16_t*>(&response[1]));
     payload_size = ntohl(*reinterpret_cast<const uint32_t*>(&response[3]));
     payload = std::vector<uint8_t>(response.begin() + 7, response.end());
-    handel_response_opCode(op_code);
+    handel_received_opCode(op_code);
 }
 
-void Client::handel_response_opCode(uint16_t op_code) {
+void Client::handel_received_opCode(uint16_t op_code) {
     switch(op_code) {
         case REGISTER_OK:{
             if (payload.size() != 16) {
                 std::cerr << "Error: Invalid UUID length" << std::endl;
-                handle_send_opCode(REGISTER_NOK);
+                op_code = REGISTER_NOK;
+            }else{
+                std::copy(payload.begin(), payload.end(), uuid.begin());
+                std::cout << "REGISTER OK, UUID: " << uuid << std::endl;
+                create_me_file();
+                op_code = SENDING_PUBLIC_KEY;
             }
-            std::copy(payload.begin(), payload.end(), uuid.begin());
-
-            std::cout << "REGISTER OK: " << uuid << std::endl;
-            create_me_file();
-            handle_send_opCode(SENDING_PUBLIC_KEY);
             break;
         }
         case REGISTER_NOK:
             connection_request_count++;
             if (connection_request_count < 3) {
                 std::cout << "REGISTER NOK" << std::endl;
-                handle_send_opCode(REGISTER);
+                std::cout << "Trying to register again..." << std::endl;
+                op_code = REGISTER;
             } else {
                 std::cout << "REGISTER NOK after 3 attempts" << std::endl;
+                std::cout << "Terminating connection..." << std::endl;
                 return;
             }
             break;
         case RECEIVE_AES_KEY:{
+            std::cout << "Receiving AES key..." << std::endl;
             std::vector<uint8_t> encrypted_aes_key(payload.begin()+16, payload.end());
-            cryptoKey.decrypt_aes_key(encrypted_aes_key);
-            handle_send_opCode(SENDING_FILE);
+            try {
+                cryptoKey.decrypt_aes_key(encrypted_aes_key);
+            } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                op_code = GENERAL_ERROR;
+                return;
+            }
+            op_code = SENDING_FILE;
             break;
         }
-        case CRC_RECEIVE_OK:
+        case FILE_RECEIVE_OK_AND_CRC:{
+            std::cout << "Checking CRC32 checksum..." << std::endl;
+            uint32_t checksum = ntohl(*reinterpret_cast<const uint32_t*>(&payload[275]));
+            if(cryptoKey.verify_checksum(checksum)){
+                std::cout << "File received successfully" << std::endl;
+                op_code = CRC_OK;
+            }else{
+                std::cout << "File not received successfully" << std::endl;
+                crc_not_ok_count++;
+                if (crc_not_ok_count < 4) {
+                    std::cout << "CRC NOT OK" << std::endl;
+                    op_code = CRC_NOT_OK;
+                } else {
+                    std::cout << "CRC NOT OK after 4 attempts" << std::endl;
+                    std::cout << "Terminating connection..." << std::endl;
+                    return;
+                }
+            }
             break;
+        }
         case MESSAGE_RECEIVE_OK:
+            std::cout << "Message received successfully" << std::endl;
+            return;
             break;
         case RECONNECT_OK_SEND_AES:
             break;
@@ -198,10 +239,11 @@ void Client::handel_response_opCode(uint16_t op_code) {
             break;
 
     }
+    handle_sending_opCode(op_code);
     start();
 }
 
-void Client::handle_send_opCode(uint16_t op_code) {
+void Client::handle_sending_opCode(uint16_t op_code) {
     payload.clear();
     switch(op_code) {
         case REGISTER:
@@ -219,9 +261,7 @@ void Client::handle_send_opCode(uint16_t op_code) {
             break;
         }
         case RECONNECT:
-            get_data_from_me_file();
             add_to_payload(get_name_255(client_name));
-            std::cout << "Reconnecting" << std::endl;
             break;
         case SENDING_FILE:{
             laod_file_content();
@@ -242,6 +282,7 @@ void Client::handle_send_opCode(uint16_t op_code) {
             std::cout << "CRC OK" << std::endl;
             break;
         case CRC_NOT_OK:
+            //TODO: i think it should call handle_sending_opCode(SENDING_FILE) again
             payload = std::vector<uint8_t>(file_name.begin(), file_name.end());
             std::cout << "CRC NOT OK" << std::endl;
             break;
@@ -257,7 +298,6 @@ void Client::handle_send_opCode(uint16_t op_code) {
     payload_size = uint32_t(payload.size());
 
     load_header();
-    //send_data_by_chunks();
 }
 void Client::load_header() {
 
@@ -283,17 +323,6 @@ void Client::load_header() {
 
     // Append the payload
     header_buffer.insert(header_buffer.end(), payload.begin(), payload.end());
-
-
-//    std::string header_str = client_id;
-//    header_str += version;
-//    header_str += op_code;
-//    header_str += payload_size;
-//
-//    header_buffer = std::vector<char>(header_str.begin(), header_str.end());
-//    header_buffer.insert( header_buffer.end(), payload.begin(), payload.end());
-
-
 }
 
 
@@ -328,12 +357,12 @@ void Client::laod_file_content() {
 void Client::manage_client_flow(){
     std::cout << "Waiting for response" << std::endl;
 
-//    handle_send_opCode(SENDING_PUBLIC_KEY);
-//    handle_send_opCode(RECONNECT);
-//    handle_send_opCode(SENDING_FILE);
-//    handle_send_opCode(CRC_OK);
-//    handle_send_opCode(CRC_NOT_OK);
-//    handle_send_opCode(CRC_TERMINATION);
+//    handle_sending_opCode(SENDING_PUBLIC_KEY);
+//    handle_sending_opCode(RECONNECT);
+//    handle_sending_opCode(SENDING_FILE);
+//    handle_sending_opCode(CRC_OK);
+//    handle_sending_opCode(CRC_NOT_OK);
+//    handle_sending_opCode(CRC_TERMINATION);
 }
 
 
@@ -342,7 +371,7 @@ void Client::manage_client_flow(){
 void Client::manage_encryption() {
     std::vector<uint8_t> encrypted_aes_key(payload.begin()+16, payload.end());
     cryptoKey.decrypt_aes_key(encrypted_aes_key);
-    handle_send_opCode(SENDING_FILE);
+    handle_sending_opCode(SENDING_FILE);
 }
 
 std::vector<uint8_t> Client::get_file_size(std::vector<uint8_t> file_content) {
@@ -359,16 +388,18 @@ void Client::add_to_payload(std::vector<uint8_t> data) {
     payload.insert(payload.end(), data.begin(), data.end());
 }
 void Client::create_me_file(){
+    std::cout << "Creating me file" << std::endl;
     std::ofstream file("me.info", std::ios::trunc);
 
     if (!file.is_open()) {
         std::cerr << "Error: Could not open the file" << std::endl;
         return;
     }
+    std::cout << "me file created" << std::endl;
 
     file << client_name << std::endl;
     file << uuid << std::endl;
     file << cryptoKey.get_private_key() << std::endl;
     file.close();
-
 }
+
