@@ -13,12 +13,22 @@
 using namespace CryptoPP;
 
 CryptoPPKey::CryptoPPKey() {
+    if (std::filesystem::exists("priv.key")) {
+        StringSource ss(get_private_key_from_private_file(), true, new Base64Decoder);
+        privateKey.Load(ss);
+        publicKey = CryptoPP::RSA::PublicKey(privateKey);
+        checksum = 0;
+        crc32 = boost::crc_32_type();
+        std::cout << "RSA Key Pair loaded successfully.\n";
+        return;
+    }
     CryptoPP::AutoSeededRandomPool rng;
     privateKey.Initialize(rng, MODULUS_BITS_SIZE);
     publicKey = CryptoPP::RSA::PublicKey(privateKey);
     std::cout << "RSA Key Pair generated successfully.\n";
     checksum = 0;
     crc32 = boost::crc_32_type();
+    make_private_file();
 }
 CryptoPPKey::CryptoPPKey(const std::string& private_key) {
     // Load private key from string
@@ -103,6 +113,7 @@ void CryptoPPKey::decrypt_aes_key(const std::vector<uint8_t>& encrypted_aes_key)
     // Decrypt AES key using private RSA key
     RSAES_OAEP_SHA_Decryptor decryptor(privateKey);
     std::string decrypted_aes_key;
+    std::cout << "Encrypted AES key length: " << encrypted_aes_key.size() << std::endl;
 
     try {
         StringSource ss1(
@@ -169,7 +180,29 @@ void CryptoPPKey::calculate_checksum(const std::vector<uint8_t>& file_content) {
 bool CryptoPPKey::verify_checksum(uint32_t checksum){
     return checksum == this->checksum;
 }
-
+void CryptoPPKey::make_private_file() {
+    std::ofstream priv_file("priv.key");
+    if (!priv_file.is_open()) {
+        std::cerr << "Failed to open file: priv.key" << std::endl;
+        return;
+    }
+    priv_file << get_private_key();
+    priv_file.close();
+}
+std::string CryptoPPKey::get_private_key_from_private_file() {
+    std::string privateKeyStr;
+    std::ifstream priv_file("priv.key");
+    if (!priv_file.is_open()) {
+        std::cerr << "Failed to open file: priv.key" << std::endl;
+        return "";
+    }
+    std::string line;
+    while (std::getline(priv_file, line)) {
+        privateKeyStr += line;
+    }
+    priv_file.close();
+    return privateKeyStr;
+}
 //int main(){
 //    CryptoPPKey key;
 //

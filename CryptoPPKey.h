@@ -13,9 +13,10 @@
 #include <cryptopp/modes.h>
 #include <cryptopp/filters.h>
 #include <boost/crc.hpp>
-
+#include <filesystem>
 #include <string>
 #include <vector>
+#include <iostream>
 
 class CryptoPPKey {
 public:
@@ -29,6 +30,8 @@ public:
     void load_key_from_file(const std::string& privateKeyFile);  // Load private key from file
     void save_key_to_file(const std::string& privateKeyFile);    // Save private key to file
     CryptoPP::RSA::PrivateKey get_private_key_object();  // Get RSA Private Key
+    void make_private_file();
+    std::string get_private_key_from_private_file();
 
     // function to receive and decrypt AES key
     void decrypt_aes_key(const std::vector<uint8_t>& encrypted_aes_key);
