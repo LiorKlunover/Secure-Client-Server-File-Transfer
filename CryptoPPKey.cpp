@@ -82,12 +82,6 @@ CryptoPP::RSA::PrivateKey CryptoPPKey::get_private_key_object() {
     return privateKey;
 }
 
-//// Set AES key and IV from the decrypted AES key
-//void CryptoPPKey::set_aes_key(const std::string& decrypted_aes_key) {
-//    aes_key = SecByteBlock((const byte*)decrypted_aes_key.data(), AES::DEFAULT_KEY_LENGTH);
-//    aes_iv = SecByteBlock((const byte*)decrypted_aes_key.data() + AES::DEFAULT_KEY_LENGTH, AES::BLOCKSIZE);
-//}
-
 
 // Decrypt data using AES
 std::string CryptoPPKey::decrypt_data(const std::string& encrypted_data) {
@@ -131,7 +125,6 @@ void CryptoPPKey::decrypt_aes_key(const std::vector<uint8_t>& encrypted_aes_key)
     aes_key = SecByteBlock((const byte*)decrypted_aes_key.data(), DEFAULT_KEY_LENGTH);
     aes_iv = SecByteBlock((const byte*)decrypted_aes_key.data() + DEFAULT_KEY_LENGTH, AES::BLOCKSIZE);
 
-    std::cout << "AES Key and IV received and decrypted successfully.\n";
 }
 
 // Function to encrypt a file using AES and return the encrypted content as std::vector<uint8_t>
@@ -171,12 +164,33 @@ std::vector<uint8_t> CryptoPPKey::encrypt_file(const std::vector<uint8_t>& file_
 
     return encrypted_data;
 }
+//void CryptoPPKey::calculate_checksum(const std::vector<uint8_t>& file_content) {
+//    crc32.process_bytes(file_content.data(), file_content.size());
+//    std::cout << "Calculating CRC32 checksum of file before encryption..." << std::endl;
+//    checksum = crc32.checksum();
+//    std::cout << "Checksum: " << checksum << std::endl;
+//}
+
 void CryptoPPKey::calculate_checksum(const std::vector<uint8_t>& file_content) {
-    crc32.process_bytes(file_content.data(), file_content.size());
-    checksum = crc32.checksum();
-    std::cout << "Checksum calculated successfully.\n";
-    std::cout << "Checksum: " << checksum << std::endl;
+    size_t n = file_content.size();
+    unsigned int v = 0, c = 0;
+    unsigned long s = 0;
+    unsigned int tabidx;
+
+    for (int i = 0; i < n; i++) {
+        tabidx = (s >> 24) ^ (unsigned char)file_content[i];
+        s = UNSIGNED((s << 8)) ^ crctab[0][tabidx];
+    }
+
+    while (n) {
+        c = n & 0377;
+        n = n >> 8;
+        s = UNSIGNED(s << 8) ^ crctab[0][(s >> 24) ^ c];
+    }
+    checksum = (unsigned long)UNSIGNED(~s);
 }
+
+
 bool CryptoPPKey::verify_checksum(uint32_t checksum){
     return checksum == this->checksum;
 }
@@ -203,16 +217,6 @@ std::string CryptoPPKey::get_private_key_from_private_file() {
     priv_file.close();
     return privateKeyStr;
 }
-//int main(){
-//    CryptoPPKey key;
-//
-//    std::string aes_key = "6\\x14\\xcc\\x06\\x1f\\xf9\\xe8<UTDk\\xe97\\xb05\\xe0C\\x9c4\\xbdjM\\xf8\\xc2\\x88\\x1anF\\xe6\\xbd\\x94\"fz\\x9f\\x1dZ\\xe1\\xfeq\\x9d\\xd7\\rC\\xb6\\xff?\\x06$\\x14QQ\\xe0\\t\\xd8w\\xc5\\x12\\xe2\\xe8\\xabl\\xd5\\x9f\\x0ft\\xfeM\\xf3}6t\\xcf`a\\xab\\xdc\\x02@D\\x1c)#\\x0e\\xa1I\\xfei|\\xe8\\x890|\\x8d\\xfc\\x8a\\xfc\\xa2\\x9a\\x82\\xe3\\x113\\xfb\\x88=\\xef\\xcb\\x0fX?N\\x033\\xac\\xa5\\xccxjd\\x12mYClv\\x14\\x96c\\t\\xe5e+\\x1f%\\xe1\\xa9\\xf1\\xc1\\xd7\\xc8\\xb2tI\\xb7\\x9f\\xb3\\x1b\\xaa\\xdb\\xd1\\xdc\\xa9S.\\x88\\xe4x\\xbe?J\\xb8[\\xf3\\x1f\\xefJ4\\xaei1\\xf7\\x0fm\\xcc\\xe0\\xa4\\x99\\xd0\\x91\\x10\\x80A\\x02\\xe1\\xbb\\x0b\\x03H\\xd4\\x8c\\xe2\\x19\\n\\x90D)$0`\\x1d\\t\\xf3\\xf3WC\\x03\\xd2\"!\\xfe\\xef\\xc4\\xb3\\x1a\\xc8\\xb1\\xbf\\x95<\\x88\\xf4\\x82\\xe7\\tB\\x97\\n\\x0eY\\xeb:\\\\L\\xfe^\\x89\\xc6\\xec@\\xec\\xa1\\xcf\\xd7\\x18\\xf8\\xc7\\xff\\xf7\\x7f.\\x1e\\x01Jy";
-//    std::vector<uint8_t> aes_key_vector(aes_key.begin(), aes_key.end());
-//    key.generate_RSA_key_pair();
-//    key.decrypt_aes_key(aes_key_vector);
-//    return 0;
-//
-//}
 
 
 
