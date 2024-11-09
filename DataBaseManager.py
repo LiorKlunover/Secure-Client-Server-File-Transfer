@@ -1,3 +1,7 @@
+"""
+Author: Lior Klunover
+Version: 1.0.1
+"""
 import sqlite3
 import threading
 import uuid

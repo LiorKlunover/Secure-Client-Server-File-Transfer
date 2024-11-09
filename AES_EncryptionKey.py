@@ -1,3 +1,7 @@
+"""
+Author: Lior Klunover
+Version: 1.0.1
+"""
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Util.Padding import pad, unpad

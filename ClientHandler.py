@@ -1,4 +1,8 @@
 
+"""
+Author: Lior Klunover
+Version: 1.0.1
+"""
 import socket
 import threading
 import uuid

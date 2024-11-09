@@ -6,7 +6,7 @@ This module implements a secure, multi-threaded server for handling encrypted fi
 It uses AES encryption for file content and manages client connections through a SQLite database.
 
 Author: Lior Klunover
-Version: 1.0.0
+Version: 1.0.1
 """
 
 import logging
