@@ -107,7 +107,6 @@ private:
     void parse_response(const std::vector<uint8_t>& response);
     void add_to_payload(std::vector<uint8_t> data);
     void create_me_file();
-    void fatal_error(const std::string& error_message);
 };
 
 

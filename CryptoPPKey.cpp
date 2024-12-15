@@ -7,45 +7,57 @@
 #include "CryptoPPKey.h"
 #include <iostream>
 
-#define MODULUS_BITS_SIZE 1024
-#define DEFAULT_KEY_LENGTH 32
+// Constants for key generation
+#define MODULUS_BITS_SIZE 1024 // Size of the RSA modulus in bits
+#define DEFAULT_KEY_LENGTH 32   // Default length for AES key
 
 using namespace CryptoPP;
 
+/**
+ * @brief Constructor for CryptoPPKey.
+ *
+ * This constructor initializes the CryptoPPKey object. It first checks if the private key file
+ * already exists. If it does, the private key is loaded from the file and decoded from Base64,
+ * and the corresponding public key is generated. If the file does not exist, a new RSA key pair
+ * is generated, and the private key is saved to a file.
+ */
 CryptoPPKey::CryptoPPKey() {
+    // Check if the private key file already exists
     if (std::filesystem::exists("priv.key")) {
+        // Load the private key from the file and decode it from Base64
         StringSource ss(get_private_key_from_private_file(), true, new Base64Decoder);
-        privateKey.Load(ss);
-        publicKey = CryptoPP::RSA::PublicKey(privateKey);
-        checksum = 0;
-        crc32 = boost::crc_32_type();
-        std::cout << "RSA Key Pair loaded successfully.\n";
-        return;
+        privateKey.Load(ss); // Load the private key
+        publicKey = CryptoPP::RSA::PublicKey(privateKey); // Generate the corresponding public key
+        checksum = 0; // Initialize checksum
+        crc32 = boost::crc_32_type(); // Initialize CRC32 calculator
+        std::cout << "RSA Key Pair loaded successfully.\n"; // Notify successful key loading
+        return; // Exit the constructor
     }
-    CryptoPP::AutoSeededRandomPool rng;
-    privateKey.Initialize(rng, MODULUS_BITS_SIZE);
-    publicKey = CryptoPP::RSA::PublicKey(privateKey);
-    std::cout << "RSA Key Pair generated successfully.\n";
-    checksum = 0;
-    crc32 = boost::crc_32_type();
-    make_private_file();
-}
-CryptoPPKey::CryptoPPKey(const std::string& private_key) {
-    // Load private key from string
-    StringSource ss(private_key, true, new Base64Decoder);
-    privateKey.Load(ss);
-    publicKey = CryptoPP::RSA::PublicKey(privateKey);
-    checksum = 0;
-    crc32 = boost::crc_32_type();
+
+    // Generate a new RSA key pair if the file does not exist
+    CryptoPP::AutoSeededRandomPool rng; // Random number generator
+    privateKey.Initialize(rng, MODULUS_BITS_SIZE); // Initialize the private key
+    publicKey = CryptoPP::RSA::PublicKey(privateKey); // Generate the public key
+    std::cout << "RSA Key Pair generated successfully.\n"; // Notify successful key generation
+    checksum = 0; // Initialize checksum
+    crc32 = boost::crc_32_type(); // Initialize CRC32 calculator
+    make_private_file(); // Create a file to store the private key
 }
 
+// Destructor for CryptoPPKey
 CryptoPPKey::~CryptoPPKey() {
-    // Destructor
-}
 
+}
+/**
+ * @brief Retrieves the public key in Base64 format.
+ *
+ * This function encodes the public key in Base64 format and returns it as a vector of uint8_t.
+ * It uses the Crypto++ library's Base64Encoder to perform the encoding.
+ *
+ * @return A vector of uint8_t containing the Base64-encoded public key.
+ */
 std::vector<uint8_t> CryptoPPKey::get_public_key_base64() {
-    // String to hold the Base64-encoded public key
-    std::string publicKeyStr;
+    std::string publicKeyStr; // String to hold the Base64-encoded public key
 
     // Base64 encode the public key (DER format)
     Base64Encoder encoder(new StringSink(publicKeyStr));
@@ -58,51 +70,34 @@ std::vector<uint8_t> CryptoPPKey::get_public_key_base64() {
     return publicKeyBytes;
 }
 
-
-void CryptoPPKey::save_key_to_file(const std::string& privateKeyFile) {
-    FileSink privFile(privateKeyFile.c_str());
-    privateKey.DEREncode(privFile);
-    privFile.MessageEnd();
-}
-
-void CryptoPPKey::load_key_from_file(const std::string& privateKeyFile) {
-    FileSource privFile(privateKeyFile.c_str(), true);
-    privateKey.BERDecode(privFile);
-}
-
-// Get Private Key in Base64 format
+/**
+ * @brief Get the Private Key in Base64 format.
+ *
+ * This function encodes the private key in Base64 format and returns it as a string.
+ * It uses the Crypto++ library's Base64Encoder to perform the encoding.
+ *
+ * @return A string containing the Base64-encoded private key.
+ */
 std::string CryptoPPKey::get_private_key() {
-    std::string privateKeyStr;
-    Base64Encoder encoder(new StringSink(privateKeyStr));
-    privateKey.DEREncode(encoder);
-    encoder.MessageEnd();
-    return privateKeyStr;
-}
-CryptoPP::RSA::PrivateKey CryptoPPKey::get_private_key_object() {
-    return privateKey;
+    std::string privateKeyStr; // String to hold the Base64-encoded private key
+    Base64Encoder encoder(new StringSink(privateKeyStr)); // Base64 encode the private key
+    privateKey.DEREncode(encoder); // Encode the private key in DER format
+    encoder.MessageEnd(); // Signal the end of the encoding process
+    return privateKeyStr; // Return the Base64-encoded private key
 }
 
 
-// Decrypt data using AES
-std::string CryptoPPKey::decrypt_data(const std::string& encrypted_data) {
-    AutoSeededRandomPool rng;
-    CBC_Mode<AES>::Decryption aesDecryptor;
-    aesDecryptor.SetKeyWithIV(aes_key, aes_key.size(), aes_iv);
-
-    std::string decrypted_data;
-
-    StringSource ss1(encrypted_data, true,
-                     new StreamTransformationFilter(aesDecryptor,
-                                                    new StringSink(decrypted_data)
-                     )
-    );
-
-    return decrypted_data;
-}
-
-// Function to receive and decrypt AES key
+/**
+ * @brief Decrypts an AES key using the private RSA key.
+ *
+ * This function takes an encrypted AES key, decrypts it using the private RSA key,
+ * and extracts the AES key and IV from the decrypted data.
+ *
+ * @param encrypted_aes_key A vector of uint8_t containing the encrypted AES key.
+ * @throws std::runtime_error if the AES key decryption fails.
+ */
 void CryptoPPKey::decrypt_aes_key(const std::vector<uint8_t>& encrypted_aes_key) {
-    AutoSeededRandomPool rng;
+    AutoSeededRandomPool rng; // Random number generator
 
     // Decrypt AES key using private RSA key
     RSAES_OAEP_SHA_Decryptor decryptor(privateKey);
@@ -124,10 +119,19 @@ void CryptoPPKey::decrypt_aes_key(const std::vector<uint8_t>& encrypted_aes_key)
     // Extract the AES key and IV from the decrypted data
     aes_key = SecByteBlock((const byte*)decrypted_aes_key.data(), DEFAULT_KEY_LENGTH);
     aes_iv = SecByteBlock((const byte*)decrypted_aes_key.data() + DEFAULT_KEY_LENGTH, AES::BLOCKSIZE);
-
 }
 
-// Function to encrypt a file using AES and return the encrypted content as std::vector<uint8_t>
+/**
+ * @brief Encrypts a file using AES and returns the encrypted content.
+ *
+ * This function encrypts the provided file content using AES encryption in CBC mode.
+ * It first ensures that the AES key and IV are set, calculates the CRC32 checksum of the file content,
+ * and then performs the encryption. The encrypted content is returned as a vector of uint8_t.
+ *
+ * @param file_content A vector of uint8_t containing the content of the file to be encrypted.
+ * @return A vector of uint8_t containing the encrypted content of the file.
+ * @throws std::runtime_error if the AES key or IV is not set, or if an error occurs during encryption.
+ */
 std::vector<uint8_t> CryptoPPKey::encrypt_file(const std::vector<uint8_t>& file_content) {
     // Ensure the AES key and IV are set
     if (aes_key.size() == 0 || aes_iv.size() == 0) {
@@ -137,16 +141,16 @@ std::vector<uint8_t> CryptoPPKey::encrypt_file(const std::vector<uint8_t>& file_
     // Calculate the CRC32 checksum of the file content
     calculate_checksum(file_content);
 
-    AutoSeededRandomPool rng;
-    std::vector<uint8_t> encrypted_data;
+    AutoSeededRandomPool rng; // Random number generator
+    std::vector<uint8_t> encrypted_data; // Vector to hold the encrypted data
 
     // Set up AES encryption in CBC mode
     CBC_Mode<AES>::Encryption aesEncryptor;
     aesEncryptor.SetKeyWithIV(aes_key, aes_key.size(), aes_iv);
 
     // Encrypt the file content
-    std::string plain(reinterpret_cast<const char*>(file_content.data()), file_content.size());
-    std::string cipher;
+    std::string plain(reinterpret_cast<const char*>(file_content.data()), file_content.size()); // Convert file content to string
+    std::string cipher; // String to hold the encrypted content
 
     try {
         StringSource ss(plain, true,
@@ -155,68 +159,93 @@ std::vector<uint8_t> CryptoPPKey::encrypt_file(const std::vector<uint8_t>& file_
                         )
         );
     } catch (const Exception& e) {
-        std::cerr << "Error during encryption: " << e.what() << std::endl;
+        std::cerr << "Error during encryption: " << e.what() << std::endl; // Log encryption error
         throw;
     }
 
     // Copy encrypted data to std::vector<uint8_t>
     encrypted_data.assign(cipher.begin(), cipher.end());
 
-    return encrypted_data;
+    return encrypted_data; // Return the encrypted data
 }
-//void CryptoPPKey::calculate_checksum(const std::vector<uint8_t>& file_content) {
-//    crc32.process_bytes(file_content.data(), file_content.size());
-//    std::cout << "Calculating CRC32 checksum of file before encryption..." << std::endl;
-//    checksum = crc32.checksum();
-//    std::cout << "Checksum: " << checksum << std::endl;
-//}
 
+/**
+ * @brief Calculates the CRC32 checksum of the given file content.
+ *
+ * This function computes the CRC32 checksum for the provided file content
+ * using a predefined CRC table. The result is stored in the `checksum` member variable.
+ *
+ * @param file_content A vector of uint8_t containing the content of the file to be checksummed.
+ */
 void CryptoPPKey::calculate_checksum(const std::vector<uint8_t>& file_content) {
-    size_t n = file_content.size();
-    unsigned int v = 0, c = 0;
-    unsigned long s = 0;
-    unsigned int tabidx;
+    size_t n = file_content.size(); // Get the size of the file content
+    unsigned int v = 0, c = 0; // Variables for CRC calculation
+    unsigned long s = 0; // Variable to hold the checksum
+    unsigned int tabidx; // Index for the CRC table
 
     for (int i = 0; i < n; i++) {
-        tabidx = (s >> 24) ^ (unsigned char)file_content[i];
-        s = UNSIGNED((s << 8)) ^ crctab[0][tabidx];
+        tabidx = (s >> 24) ^ (unsigned char)file_content[i]; // Calculate table index
+        s = UNSIGNED((s << 8)) ^ crctab[0][tabidx]; // Update checksum
     }
 
     while (n) {
-        c = n & 0377;
-        n = n >> 8;
-        s = UNSIGNED(s << 8) ^ crctab[0][(s >> 24) ^ c];
+        c = n & 0377; // Get the lowest 8 bits of n
+        n = n >> 8; // Shift n right by 8 bits
+        s = UNSIGNED(s << 8) ^ crctab[0][(s >> 24) ^ c]; // Update checksum
     }
-    checksum = (unsigned long)UNSIGNED(~s);
+    checksum = (unsigned long)UNSIGNED(~s); // Finalize checksum
 }
 
-
-bool CryptoPPKey::verify_checksum(uint32_t checksum){
-    return checksum == this->checksum;
+/**
+ * @brief Verifies the provided checksum against the stored checksum.
+ *
+ * This function compares the provided checksum with the stored checksum
+ * and returns true if they match, false otherwise.
+ *
+ * @param checksum The checksum to verify.
+ * @return True if the provided checksum matches the stored checksum, false otherwise.
+ */
+bool CryptoPPKey::verify_checksum(uint32_t checksum) {
+    return checksum == this->checksum; // Compare provided checksum with stored checksum
 }
+
+/**
+ * @brief Creates a file to store the private key.
+ *
+ * This function creates a file named "priv.key" and writes the Base64-encoded
+ * private key to it. If the file cannot be opened, an error message is printed.
+ */
 void CryptoPPKey::make_private_file() {
-    std::ofstream priv_file("priv.key");
-    if (!priv_file.is_open()) {
-        std::cerr << "Failed to open file: priv.key" << std::endl;
-        return;
+    std::ofstream priv_file("priv.key"); // Open the private key file for writing
+    if (!priv_file.is_open()) { // Check if the file was opened successfully
+        std::cerr << "Failed to open file: priv.key" << std::endl; // Log an error message if not
+        return; // Exit the function if the file could not be opened
     }
-    priv_file << get_private_key();
-    priv_file.close();
+    priv_file << get_private_key(); // Write the Base64-encoded private key to the file
+    priv_file.close(); // Close the file after writing
 }
+
+/**
+ * @brief Retrieves the private key from the private key file.
+ *
+ * This function reads the private key from the file named "priv.key" and returns it
+ * as a string. If the file cannot be opened, an error message is printed and an empty
+ * string is returned.
+ *
+ * @return A string containing the private key read from the file, or an empty string if the file cannot be opened.
+ */
 std::string CryptoPPKey::get_private_key_from_private_file() {
-    std::string privateKeyStr;
-    std::ifstream priv_file("priv.key");
-    if (!priv_file.is_open()) {
-        std::cerr << "Failed to open file: priv.key" << std::endl;
-        return "";
+    std::string privateKeyStr; // String to hold the private key
+    std::ifstream priv_file("priv.key"); // Open the private key file
+    if (!priv_file.is_open()) { // Check if the file was opened successfully
+        std::cerr << "Failed to open file: priv.key" << std::endl; // Log an error message if not
+        return ""; // Return an empty string if the file could not be opened
     }
-    std::string line;
-    while (std::getline(priv_file, line)) {
-        privateKeyStr += line;
+    std::string line; // String to hold each line read from the file
+    while (std::getline(priv_file, line)) { // Read the file line by line
+        privateKeyStr += line; // Append each line to the private key string
     }
-    priv_file.close();
-    return privateKeyStr;
+    priv_file.close(); // Close the file after reading
+    return privateKeyStr; // Return the private key string
 }
-
-
 
