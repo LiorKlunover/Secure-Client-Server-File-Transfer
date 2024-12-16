@@ -196,7 +196,7 @@ class SecureTransferServer:
             host=host,
             port=port,
             max_connections=MAX_CONNECTIONS,
-            db_path= 'defensive.db'
+            db_path='defensive.db'
         )
         return cls(config)
 

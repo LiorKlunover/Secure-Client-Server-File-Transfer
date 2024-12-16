@@ -3,13 +3,11 @@
 Author: Lior Klunover
 Version: 1.0.1
 """
-import socket
 import threading
 import uuid
-import logging
 
-from typing import Optional, Tuple , Union
-from AES_EncryptionKey import AES_EncryptionKey
+from typing import Union
+from Server.AES_EncryptionKey import AES_EncryptionKey
 
 # Constants
 CHUNK_SIZE = 1024
